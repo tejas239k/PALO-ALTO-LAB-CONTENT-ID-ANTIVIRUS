@@ -1,0 +1,173 @@
+Content ID/Security Profiles - AntiVirus
+
+After Setting up the basic management and client pc with required ip addresses and gateway(if required) and also setting the management interface on palo alto with the below given configuration, we'll move to palo alto GUI.
+
+Palo Alto Management Interface
+configure
+set deviceconfig system type static
+set deviceconfig system ip-address 192.168.10.10 netmask 255.255.255.0
+commit
+exit
+
+Network>Interfaces>ethernet1/1
+Interface Name: ethernet1/1
+Interface Type: Layer3
+Config
+Virtual Router: default
+Security Zone: LAN
+IPv4
+add
+192.168.20.10/24
+Advanced
+Management Profile(New)
+Name: Ping
+HTTP
+HTTPS
+Ping
+ok
+Network>Interfaces>ethernet1/2
+Interface Name: ethernet1/2
+Interface Type: Layer3
+Config
+Virtual Router: default
+Security Zone: Outside
+IPv4
+DHCP Client
+ok
+
+Objects>Tags
+Add
+Name:Lan
+Color:Forest Green
+ok
+Add
+Name:Outside
+Color:Red
+ok
+
+Policies>Security>
+Add
+General
+Name:LAN-to-Outside
+Source
+Source Zone
+Add
+LAN
+Source Address
+Add
+192.168.20.0/24
+Destination
+Destination zone
+Add
+Outside
+ok
+
+Policies>NAT
+Add
+General
+Name: PAT
+Original Packet
+Source Zone
+Add
+LAN
+Destination Zone
+Outside
+Translated Packet
+Source Address Translation
+Translation Type: Dynamic IP And Port
+Address Type: Interface Address
+Interface: ethernet1/2
+IP Address: None
+ok
+COMMIT
+
+This is a normal setup for the client to access the internet which will be similar in most of the labs moving forward.
+
+Go to the client PC and try to access the internet.(SUCCESS!!)
+
+So for the Content-ID the palo alto needs to inspect the packet going towards the internet so for that we need
+-Decryption Profile
+-Antivirus setup
+
+Objects>Decryption>Decryption Profile
+Add
+Name:SSL_Decryption1
+
+By applying the decryption the palo alto can now encapsulate the HTTP/SSL/SSH Packet which are secured and see inside the application.
+
+Policies>Decryption>
+Add
+General
+Name:Decryption1
+Source
+Source Zone
+Add
+LAN
+Source Address
+Add
+192.168.20.0/24
+Destination
+Destination zone
+Add
+Outside
+ok
+Options
+Action: Decrypt
+Type: SSL Forward Proxy
+Decryption Profile: SSL_Decryption1
+ok
+
+Lets now create the certificate.
+
+Device>Certificate Management>Certificates
+Generate
+Certificate Type: Local
+Certificate Name: PA_Certificate
+Common Name: 192.168.20.10
+Signed By
+Certificate Authority
+Generate
+PA_Certificate
+Forward Trust Certificate
+ok
+
+Here if you go to the client and search for www.google.com we'll see that the certificate issued by 192.168.20.10 is Not secure.
+
+After this we go to the client pc and login to the palo alto firewall to export the certificate.
+
+Make sure to place the certificate in the "Trusted Root Certificate Authorities"
+
+Objects>Security Profiles>Antivirus-Profile
+Add
+Name:Virus_Detected
+Decoders
+http->Signature Actions->change to drop
+http2->Signature Actions->change to drop
+ok
+
+Policies>Security>LAN-to-Outside
+Action
+Profile Setting
+Profile Type:Profiles
+Antivirus:Antivirus-Profile
+
+Now before moving forward and commiting lets see what happens when the client tries to download some virus.
+go to client pc > browser 
+www.eicar.org/download-anti-malware-testfile(Virus test file)
+you'll see some line
+X50!P%@AP[4\PZX54(P^)7CC)$EICER...
+
+now lets commit
+and do the same thing on the client pc
+
+you'll see a window saying Virus/Spyware Download Blocked!
+
+DONE!!
+
+
+
+
+
+
+
+
